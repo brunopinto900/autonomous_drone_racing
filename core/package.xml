@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>core</name>
+  <version>0.0.0</version>
+  <description>Core package</description>
+
+  <author email="bruno_pinto90@hotmail.com">Bruno Pinto</author>
+  <maintainer email="bruno_pinto90@hotmail.com">Bruno Pinto</maintainer>
+
+  <license>ASL 2.0</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  <depend>roslib</depend>
+
+  <build_depend>roscpp</build_depend>
+  <build_depend>rospy</build_depend>
+  <build_depend>std_msgs</build_depend>
+  <build_depend>geometry_msgs</build_depend>
+
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>roscpp</exec_depend>
+  <exec_depend>rospy</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+
+  <build_depend>genmsg</build_depend>
+  <exec_depend>genmsg</exec_depend>
+
+  <exec_depend>message_generation</exec_depend>
+  <exec_depend>message_runtime</exec_depend>
+  
+</package>
