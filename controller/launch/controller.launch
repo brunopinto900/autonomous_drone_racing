@@ -1,0 +1,4 @@
+<launch>
+	<arg name="output" default="screen"/>
+	<node name="PID_position_controller" pkg="controller" type="PID_position_controller" output="$(arg output)"></node>
+</launch>

@@ -1,0 +1,40 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>controller</name>
+  <version>0.0.0</version>
+  <description>Example of a PID position controller</description>
+
+  <author email="bruno_pinto90@hotmail.com">Bruno Pinto</author>
+  <maintainer email="bruno_pinto90@hotmail.com">Bruno Pinto</maintainer>
+
+  <license>ASL 2.0</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  <depend>mav_msgs</depend>
+  <depend>roslib</depend>
+  <depend>eigen_catkin</depend>
+  <depend>eigen_checks</depend>
+
+  <build_depend>roscpp</build_depend>
+  <build_depend>rospy</build_depend>
+  <build_depend>std_msgs</build_depend>
+  <build_depend>geometry_msgs</build_depend>
+  <build_depend>nav_msgs</build_depend>
+  <build_depend>visualization_msgs</build_depend>
+  <build_depend>mavros_msgs</build_depend>
+
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>roscpp</exec_depend>
+  <exec_depend>rospy</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>visualization_msgs</exec_depend>
+  <exec_depend>mavros_msgs</exec_depend>
+
+  <build_depend>core</build_depend>
+  <exec_depend>core</exec_depend>
+
+  <build_depend>airsim_ros_pkgs</build_depend>
+  <exec_depend>airsim_ros_pkgs</exec_depend>
+  
+</package>
