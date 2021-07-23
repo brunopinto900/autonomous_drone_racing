@@ -1,7 +1,7 @@
 <launch>
 <include file="$(find controller)/launch/controller.launch"/>
 <!--include file="$(find geometric_controller)/launch/mav_trajectory_track_circle.launch"/-->
-<include file="$(find geometric_controller)/launch/trajectory_controller.launch"/>
+<!--include file="$(find geometric_controller)/launch/trajectory_controller.launch"/-->
 <include file="$(find mav_trajectory_generation_example)/launch/minimum_snap.launch"/>
 <include file="$(find airsim_ros_pkgs)/launch/airsim_node.launch" />
 <node name="rviz" pkg="rviz" type="rviz" respawn="false" args="-d $(find core)/rviz/racing.rviz" />
