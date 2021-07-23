@@ -50,8 +50,7 @@ void controller_callback(geometry_msgs::Pose control_cmd) {
     
     altitude = control_cmd.position.z;
   
-    client.moveByRollPitchYawZAsync(-roll, -pitch, yaw, altitude, 1/100.0);
-    
+    client.moveByRollPitchYawZAsync(roll, -pitch, yaw, altitude, 1/100.0);
 }
 void pwm_callback(geometry_msgs::Wrench pwms) 
 {
@@ -65,6 +64,7 @@ void pwm_callback(geometry_msgs::Wrench pwms)
 
 std::vector<msr::airlib::Pose> get_gate_poses(rpc::client &rpc_client, std::vector<std::pair<Eigen::Vector3f,Eigen::Vector3f>> &A)
 {
+    ROS_INFO("GETTING POSES\n");
     std::vector<msr::airlib::Pose> gateposes_array;
     msr::airlib::Pose gatepose;
     std::vector<std::string> gate_list = rpc_client.call("simListSceneObjects","Gate.*").as<std::vector<string>>();
@@ -79,119 +79,94 @@ std::vector<msr::airlib::Pose> get_gate_poses(rpc::client &rpc_client, std::vect
     }
     A.push_back(std::pair<Eigen::Vector3f,Eigen::Vector3f>{A[A.size()-1].first+A[A.size()-1].second*5,A[A.size()-1].second});
     A.insert(A.begin(),std::pair<Eigen::Vector3f,Eigen::Vector3f>{A[0].first-A[0].second/A[0].second.norm()*5,A[0].second});
-    for(auto g : A){
-        std::cout << g.first << " : " << g.second << '\n';
-    }
+    //for(auto g : A){
+     //   std::cout << g.first << " : " << g.second << '\n';
+    //}
 
+
+    // for(int i = 0; i < gateposes_array.size(); i++)
+    // {
+    //     ROS_INFO("AAAAAAAAAA\n");
+    //     double qx,qy,qz,qw;
+    //     qx = gateposes_array[i].orientation.x();
+    //     qy = gateposes_array[i].orientation.y();
+    //     qz = gateposes_array[i].orientation.z();
+    //     qw = gateposes_array[i].orientation.w();
+    //     tf2::Quaternion quat_tf(qx,qy,qz,qw);
+    //     // Conversion yaw (from NED)
+    //     double roll, pitch, yaw;
+    //     tf2::Matrix3x3(quat_tf).getRPY(roll, pitch, yaw);
+    //     file_gate << gateposes_array[i].position(0) << "," << gateposes_array[i].position(1) << "," << gateposes_array[i].position(2) << "," << yaw << "\n";
+    // }
+
+    // file_gate.close();
     return gateposes_array;
 }
 
 void timer_callback(const ros::TimerEvent&) {
-    //counter++;
+    
+    geometry_msgs::PoseStamped gates_debug;
+    geometry_msgs::PoseArray gate_poses_msg;
+    gate_poses_msg.header.frame_id = "world_ned";
+    gate_poses_msg.header.stamp = ros::Time::now();
 
-    if(counter <= 1)
+    // Gate visualization
+    visualization_msgs::MarkerArray gates_viz;
+    
+    for(int i = 0; i < gateposes_arr.size(); i++)
     {
-        geometry_msgs::PoseStamped gates_debug;
-        geometry_msgs::PoseArray gate_poses_msg;
-        gate_poses_msg.header.frame_id = "world_ned";
-        gate_poses_msg.header.stamp = ros::Time::now();
+        geometry_msgs::Pose tmp;
+        gate_poses_msg.poses.push_back(tmp);
+        gate_poses_msg.poses[i].position.x = gateposes_arr[i].position(0);
+        gate_poses_msg.poses[i].position.y = gateposes_arr[i].position(1);
+        gate_poses_msg.poses[i].position.z = gateposes_arr[i].position(2);
+        gate_poses_msg.poses[i].orientation.x = gateposes_arr[i].orientation.x();
+        gate_poses_msg.poses[i].orientation.y = gateposes_arr[i].orientation.y();
+        gate_poses_msg.poses[i].orientation.z = gateposes_arr[i].orientation.z();
+        gate_poses_msg.poses[i].orientation.w = gateposes_arr[i].orientation.w();
     
+      
         // Gate visualization
-        visualization_msgs::MarkerArray gates_viz;
+        visualization_msgs::Marker gate_viz;
+        gate_viz.header.frame_id = "world_ned";
+        gate_viz.header.stamp = ros::Time::now();
+        gate_viz.id = i;
+        gate_viz.type = visualization_msgs::Marker::CUBE;
+
+        // Set the pose of the marker.  This is a full 6DOF pose relative to the frame/time specified in the header
+        gate_viz.pose.position.x = gate_poses_msg.poses[i].position.x;
+        gate_viz.pose.position.y = gate_poses_msg.poses[i].position.y;
+        gate_viz.pose.position.z = gate_poses_msg.poses[i].position.z;
+        gate_viz.pose.orientation = gate_poses_msg.poses[i].orientation;
+
+        // Set the scale of the marker -- 1x1x1 here means 1m on a side
+        gate_viz.scale.x = 0.1;
+        gate_viz.scale.y = 1.0;
+        gate_viz.scale.z = 1.0;
+        // Set the color -- be sure to set alpha to something non-zero!
+        gate_viz.color.r = 1.0f;
+        gate_viz.color.a = 1.0;
+
+        gates_viz.markers.push_back(gate_viz);
         
-
-        for(int i = 0; i < gateposes_arr.size(); i++)
-        {
-            geometry_msgs::Pose tmp;
-            gate_poses_msg.poses.push_back(tmp);
-            gate_poses_msg.poses[i].position.x = gateposes_arr[i].position(0);
-            gate_poses_msg.poses[i].position.y = gateposes_arr[i].position(1);
-            gate_poses_msg.poses[i].position.z = gateposes_arr[i].position(2);
-            file_gate << gateposes_arr[i].position(0) << "," << gateposes_arr[i].position(1) << "," << gateposes_arr[i].position(2) << "\n";
-
-
-            gates_debug.header.frame_id = "world_ned";
-            gates_debug.header.stamp = ros::Time::now();
-            gates_debug.pose.position.x = gateposes_arr[i].position(0);
-            gates_debug.pose.position.y = gateposes_arr[i].position(1);
-            gates_debug.pose.position.z = gateposes_arr[i].position(2);
-            
-
-
-            double qx,qy,qz,qw;
-            qx = gateposes_arr[i].orientation.x();
-            qy = gateposes_arr[i].orientation.y();
-            qz = gateposes_arr[i].orientation.z();
-            qw = gateposes_arr[i].orientation.w();
-
-            tf2::Quaternion quat_tf(qx,qy,qz,qw);
-
-            // Conversion yaw (from NED)
-            double roll, pitch, yaw;
-            tf2::Matrix3x3(quat_tf).getRPY(roll, pitch, yaw);
-            yaw = std::atan2(1-2*(qy*qy+qz*qz), -2*(qw*qz+qx*qy));
-
-            
-
-            tf2::Quaternion quat_newYaw;
-            quat_newYaw.setRPY( roll, pitch, yaw ); // + 1.57
-            quat_newYaw.normalize();
-            geometry_msgs::Quaternion quat_msg;
-            quat_msg = tf2::toMsg(quat_newYaw);
-
-            gate_poses_msg.poses[i].orientation = quat_msg;
-            gates_debug.pose.orientation = quat_msg;
-            debug_gates_pub.publish(gates_debug); 
-         
-            // Gate visualization
-            visualization_msgs::Marker gate_viz;
-            gate_viz.header.frame_id = "world_ned";
-            gate_viz.header.stamp = ros::Time::now();
-            gate_viz.id = i;
-            gate_viz.type = visualization_msgs::Marker::CUBE;
-
-            // Set the pose of the marker.  This is a full 6DOF pose relative to the frame/time specified in the header
-            gate_viz.pose.position.x = gate_poses_msg.poses[i].position.x;
-            gate_viz.pose.position.y = gate_poses_msg.poses[i].position.y;
-            gate_viz.pose.position.z = gate_poses_msg.poses[i].position.z;
-            gate_viz.pose.orientation = quat_msg;
-
-            // Set the scale of the marker -- 1x1x1 here means 1m on a side
-            gate_viz.scale.x = 0.1;
-            gate_viz.scale.y = 1.0;
-            gate_viz.scale.z = 1.0;
-            // Set the color -- be sure to set alpha to something non-zero!
-            gate_viz.color.r = 1.0f;
-            gate_viz.color.a = 1.0;
-
-            gates_viz.markers.push_back(gate_viz);
-            
-            
-        }
-   
-        // Publish the marker
-        gates_viz_pub.publish(gates_viz);   
-        gate_poses_pub.publish(gate_poses_msg);
-
+        
     }
-    
+
+    // Publish the marker
+    gates_viz_pub.publish(gates_viz);   
+    gate_poses_pub.publish(gate_poses_msg);
 
 }
 
 
 int main(int argc, char ** argv)
 {
-   
-    file_gate.open ("/home/bruno/gates.txt");
-
-    std::ofstream myfile;
-    myfile.open("/home/bruno/logging.txt");
-    myfile << "Logging\n";
-    std::cout << "AirSim\n";
+    //file_gate.open("/home/bruno/gates.txt", std::fstream::out);
     ros::init(argc, argv, "airsim_node");
     ros::NodeHandle nh; 
     ros::NodeHandle nh_private("~");
     gates_viz_pub = nh_private.advertise<visualization_msgs::MarkerArray>("gates_viz", 10);
+    //ROS_INFO("MAIN\n");
 
     pwm_sub = nh.subscribe("/pwm",100, pwm_callback);
     ctrl_sub = nh.subscribe("/control_cmd",100,controller_callback);
@@ -211,27 +186,15 @@ int main(int argc, char ** argv)
     rpc::client rpc_client("127.0.0.1",41451);
     rpc_client.call("simLoadLevel","Qualifier_Tier_1");
     
-    myfile << "API ENABLED\n";
     client.enableApiControl(true);
-    myfile << "ARMED\n";
     client.armDisarm(true);
-    //client.takeoffAsync(5)->waitOnLastTask();
-    myfile << "Takeoff\n";
-    
-    myfile << "Positioned\n";
-   
-    //std::cout << "Commanded attitude\n";
 
     std::vector<std::pair<Eigen::Vector3f,Eigen::Vector3f>> A;
     gateposes_arr = get_gate_poses(rpc_client,  A);
-    myfile << "getting gates\n";
     gate_poses_pub = nh_private.advertise<geometry_msgs::PoseArray>("/gates_ground_truth", 30);
     debug_gates_pub = nh.advertise<geometry_msgs::PoseStamped>("/debug_gates",100);
     rpc_client.call("simStartRace",1);     
-    myfile.close();
-    ros::Timer timer = nh_private.createTimer(ros::Duration(2), timer_callback);
-
+    ros::Timer timer = nh_private.createTimer(ros::Duration(5), timer_callback);
     ros::spin();
-
     return 0;
 } 
