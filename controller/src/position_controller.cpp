@@ -28,17 +28,21 @@
 #include <mavros_msgs/AttitudeTarget.h>
 #include <mavros_msgs/PositionTarget.h>
 
+#define GEOMETRIC_CONTROL 1
+#define PID_CONTROL 2
 // MAVROS MASK FLAGS
 uint8_t IGNORE_RATE_THRUST = 1 | 2 | 4 | 64;
 uint16_t NOT_IGNORE_Z = 1 | 2 | 8 | 16 | 32 | 64 | 128 | 256 | 512 | 1024 | 2048;
 
 ros::Time current_time;
 ros::Time previous_time;
+ros::Timer cmdloop_timer_;
 float It_x = 0;
 float It_y = 0;
 float It_z = 0;
 
 double t = 0;
+int ctrl_mode = PID_CONTROL;
 
 
 typedef struct trajectory_st{
@@ -48,10 +52,14 @@ typedef struct trajectory_st{
     double yaw;
 }trajectory;
 
+ nav_msgs::Odometry drone_state;
 trajectory traj;
 std::vector<trajectory> traj_array;
 Eigen::Vector4f forces_to_pwm(const Eigen::Vector4f &f_u);
 Eigen::Vector3f trajectory_tracking(const nav_msgs::Odometry &state, const trajectory& traj);
+
+void pid_control();
+void geometric_control();
 
 ros::Subscriber quadrotor_pose_sub;
 ros::Subscriber trajectory_sub;
@@ -117,7 +125,7 @@ void trajectory_callback(core::Trajectory trajectory_cb)
 
 
 //     // if dt passed
-//     if( ( time_passed > 1000*desired_trajectory.dt ) & (t < desired_trajectory.end_time) & !start_tracking )
+//     if( ( time_passed > 1000*desired_trajectory.dt ) & (t < desired_trajectory.end_time) &  )
 //     {
       
 //         int idx = t*10;
@@ -178,8 +186,38 @@ void trajectory_callback(core::Trajectory trajectory_cb)
 // }
 
 
+void control_loop(const ros::TimerEvent &event)
+{
+    current_time = ros::Time::now(); 
+    double time_passed = current_time.toSec() - previous_time.toSec();
+    previous_time = current_time; 
+
+    if(  (t < desired_trajectory.end_time)  & !start_tracking )
+    {
+      
+      if(time_passed >= desired_trajectory.dt) 
+      {
+        int idx = t*(1/desired_trajectory.dt);
+        traj = traj_array[idx];
+        t +=  desired_trajectory.dt;
+      }
+      
+      if(ctrl_mode == GEOMETRIC_CONTROL)
+      {
+          geometric_control();
+      }
+      if(ctrl_mode == PID_CONTROL) 
+      {
+          pid_control();
+      }
+
+    }
+
+}
+
 void quadrotor_pose_callback(nav_msgs::Odometry state) {
 
+    drone_state = state;
 
     current_time = ros::Time::now(); 
     float time_passed = (current_time.toSec()*1000) - (previous_time.toSec()*1000);
@@ -199,33 +237,6 @@ void quadrotor_pose_callback(nav_msgs::Odometry state) {
 
     quadrotor_pose_pub.publish(quadrotor_pose);
     quadrotor_velocity_pub.publish(quadrotor_velocity);
-
-    if(  (t < desired_trajectory.end_time) & !start_tracking )
-    {
-      
-        
-        int idx = t*10;
-        traj = traj_array[idx];
-        
-      
-        t +=  desired_trajectory.dt;
-
-        geometry_msgs::TwistStamped setpoint;
-        setpoint.twist.angular.x = traj.pos_d[0] + quadrotor_pose.pose.position.x*0;
-        setpoint.twist.angular.y = traj.pos_d[1] + quadrotor_pose.pose.position.y*0;
-        setpoint.twist.angular.z = traj.pos_d[2] -62*0;
-        setpoint.twist.linear.x = traj.dpos_d[0];
-        setpoint.twist.linear.y = traj.dpos_d[1];
-        setpoint.twist.linear.z = traj.dpos_d[2] + 0.5*0;
-
-        std_msgs::Float64 yaw_ref;
-        yaw_ref.data = traj.yaw;
-        setpoint_pub.publish(setpoint);
-        reference_yaw_pub.publish(yaw_ref);
-
-        previous_time = current_time; 
-
-    }
     
 }
 
@@ -237,6 +248,7 @@ int main(int argc, char **argv)
 
     ros::Time current_time = ros::Time::now();
     ros::Time previous_time = current_time;
+    cmdloop_timer_ = nh.createTimer(ros::Duration(1.0/100), &control_loop);  // Define timer for constant loop rate
 
     quadrotor_pose_sub = nh.subscribe("/airsim_node/drone_1/odom_local_ned",100, quadrotor_pose_callback);
     trajectory_sub = nh.subscribe("/trajectory",100,trajectory_callback);
@@ -248,7 +260,7 @@ int main(int argc, char **argv)
     quadrotor_pose_pub = nh.advertise<geometry_msgs::PoseStamped>("/mavros/local_position/pose",100);
     quadrotor_velocity_pub = nh.advertise<geometry_msgs::TwistStamped>("/mavros/local_position/velocity",100);
     setpoint_pub = nh.advertise<geometry_msgs::TwistStamped>("reference/setpoint",100);;
-    reference_yaw_pub = nh.advertise<std_msgs::Float64>("reference/yaw",100);;
+    reference_yaw_pub = nh.advertise<std_msgs::Float64>("reference/yaw",100);
 
     ros::spin();
     
@@ -293,8 +305,6 @@ Eigen::Vector3f trajectory_tracking(const nav_msgs::Odometry& state, const traje
 
     float m = 1, g = 9.8;
     float k_p = 1;
-    float k_i_XY = 0.2;
-    float k_i_Z = 0.2;
     float k_pz = 2;
     float k_v = 3;
     float k_vz = 3;
@@ -310,9 +320,9 @@ Eigen::Vector3f trajectory_tracking(const nav_msgs::Odometry& state, const traje
     It_y += ( traj.pos_d[1]-pos[1] )*desired_trajectory.dt;
     It_z += ( traj.pos_d[2]-pos[2] )*desired_trajectory.dt;
 
-    float v_xc = k_p*(traj.pos_d[0]-pos[0])+traj.dpos_d[0] + 0*k_i_XY*It_x;
-    float v_yc = k_p*(traj.pos_d[1]-pos[1])+traj.dpos_d[1] + 0*k_i_XY*It_y;
-    float v_zc = k_pz*(traj.pos_d[2]-pos[2])+traj.dpos_d[2] + 0*k_i_Z*It_z;
+    float v_xc = k_p*(traj.pos_d[0]-pos[0])+traj.dpos_d[0];
+    float v_yc = k_p*(traj.pos_d[1]-pos[1])+traj.dpos_d[1];
+    float v_zc = k_pz*(traj.pos_d[2]-pos[2])+traj.dpos_d[2];
 
     float a_x = k_v*(v_xc-v[0])+traj.ddpos_d[0];
     float a_y = k_v*(v_yc-v[1])+traj.ddpos_d[1];
@@ -321,18 +331,18 @@ Eigen::Vector3f trajectory_tracking(const nav_msgs::Odometry& state, const traje
     //Attitude Control (inertial to body frame)
     float phi_d = (-sin(E[2])*a_x+cos(E[2])*a_y)/g;
     float theta_d = (cos(E[2])*a_x+sin(E[2])*a_y)/g;
-    float psi_d = normalize_angle(traj.yaw); // atan2(traj.pos_d[1],traj.pos_d[0]);
+    float psi_d = traj.yaw; //atan2(traj.pos_d[1],traj.pos_d[0]); //normalize_angle(traj.yaw); // ;
 
-    float max_tilt = 90.0/180.0*M_PI;
-    float max_yaw = 179.0/180.0*M_PI;
+    float max_tilt = (40.0/180.0)*M_PI;
+    //float max_yaw = 179.0/180.0*M_PI;
     if(abs(phi_d) > max_tilt)
         phi_d = max_tilt*phi_d/abs(phi_d);
 
     if(abs(theta_d) > max_tilt)
         theta_d = max_tilt*theta_d/abs(theta_d);
     
-    if(abs(psi_d) > max_yaw)
-        psi_d = max_yaw*psi_d/abs(psi_d);
+    //if(abs(psi_d) > max_yaw)
+    //    psi_d = max_yaw*psi_d/abs(psi_d);
 
     Eigen::Vector3f attitude;
     attitude(0) = phi_d;  attitude(1) = theta_d; attitude(2) = psi_d;
@@ -353,6 +363,7 @@ Eigen::Vector3f trajectory_tracking(const nav_msgs::Odometry& state, const traje
     // f_u[3] = tau_zc;
     // return f_u;
 }
+
 
 Eigen::Vector4f forces_to_pwm(const Eigen::Vector4f &f_u)
 {
@@ -383,4 +394,46 @@ Eigen::Vector4f forces_to_pwm(const Eigen::Vector4f &f_u)
     
     std::cout << "PWM: " << pwm << "\n";
     return pwm;
+}
+
+void pid_control()
+{
+    Eigen::Vector3f attitude = trajectory_tracking(drone_state, traj);
+    double roll = attitude(0);
+    double pitch = attitude(1);
+    double yaw = attitude(2);
+
+    tf2::Quaternion quat_tf;  
+    quat_tf.setRPY( roll, pitch, yaw );
+    quat_tf.normalize();
+
+    geometry_msgs::Quaternion quat_msg;
+    quat_msg = tf2::toMsg(quat_tf);
+
+    geometry_msgs::Pose cmd;
+    cmd.orientation = quat_msg;
+    cmd.position.x = traj.pos_d[0];
+    cmd.position.y = traj.pos_d[1];
+    cmd.position.z = traj.pos_d[2];
+
+    controller_cmd_pub.publish(cmd);
+
+
+}
+
+void geometric_control()
+{
+    geometry_msgs::TwistStamped setpoint;
+    setpoint.twist.angular.x = traj.pos_d[0];
+    setpoint.twist.angular.y = traj.pos_d[1];
+    setpoint.twist.angular.z = traj.pos_d[2];
+    setpoint.twist.linear.x = traj.dpos_d[0];
+    setpoint.twist.linear.y = traj.dpos_d[1];
+    setpoint.twist.linear.z = traj.dpos_d[2];
+
+    std_msgs::Float64 yaw_ref;
+    yaw_ref.data = traj.yaw;
+    setpoint_pub.publish(setpoint);
+    reference_yaw_pub.publish(yaw_ref);
+
 }
